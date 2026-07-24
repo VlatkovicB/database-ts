@@ -21,6 +21,11 @@ const history = new HistoryStore();
 
 const app = express();
 
+// Patch Express to serialize BigInt as number in JSON responses.
+app.set('json replacer', (_key: string, value: unknown) =>
+  typeof value === 'bigint' ? Number(value) : value
+);
+
 // Parse JSON bodies for all routes.
 app.use(express.json());
 
