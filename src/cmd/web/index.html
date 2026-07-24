@@ -1,0 +1,1711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MiniDB</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Courier New', monospace; background: #0f0f1a; color: #c9d1d9; min-height: 100vh; display: flex; flex-direction: column; }
+
+  header { padding: 14px 24px; background: #161b22; border-bottom: 1px solid #21262d; display: flex; align-items: center; gap: 16px; }
+  header h1 { color: #58a6ff; font-size: 18px; letter-spacing: 1px; }
+  header .tag { color: #484f58; font-size: 12px; }
+  button.seed-btn {
+    background: transparent; color: #484f58; border: 1px solid #21262d;
+    padding: 6px 14px; cursor: pointer; font-family: 'Courier New', monospace;
+    font-size: 12px; border-radius: 6px; transition: all 0.15s; margin-left: auto;
+  }
+  button.seed-btn:hover { color: #ffa657; border-color: #ffa657; }
+  button.seed-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .layout { display: flex; flex: 1; overflow: hidden; }
+
+  /* Sidebar */
+  .sidebar { width: 220px; background: #0d1117; border-right: 1px solid #21262d; flex-shrink: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .sidebar-section { display: flex; flex-direction: column; flex-shrink: 0; }
+  .sidebar-section.grows { flex: 1; overflow: hidden; }
+  .sidebar-sep { border-top: 1px solid #21262d; margin: 4px 0; flex-shrink: 0; }
+  .sidebar-head { color: #484f58; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; padding: 8px 14px; cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; transition: color 0.1s; }
+  .sidebar-head:hover { color: #8b949e; }
+  .sidebar-head-arrow { font-size: 10px; transition: transform 0.15s; }
+  .sidebar-head-arrow.open { transform: rotate(90deg); }
+  .sidebar-section-body { overflow: hidden; }
+  .sidebar-section-body.tables-body { flex: 1; overflow-y: auto; padding: 4px 0 8px; }
+  .sidebar-section-body.panels-body { padding: 4px 0 12px; }
+  .sidebar-section-body.collapsed { display: none; }
+  .no-tables { color: #484f58; font-size: 12px; font-style: italic; padding: 0 14px; }
+
+  .stoggle {
+    display: flex; align-items: center; gap: 8px; padding: 5px 14px;
+    cursor: pointer; color: #8b949e; font-size: 12px; user-select: none;
+    transition: background 0.1s, color 0.1s;
+  }
+  .stoggle:hover { background: #161b22; color: #c9d1d9; }
+  .stoggle-ind {
+    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+    background: #21262d; transition: background 0.15s;
+  }
+  .stoggle.on .stoggle-ind { background: #238636; }
+  .stoggle.on { color: #c9d1d9; }
+
+  .tbl-group { margin-bottom: 2px; }
+  .tbl-row {
+    display: flex; align-items: center; gap: 6px; padding: 6px 14px;
+    cursor: pointer; color: #8b949e; font-size: 13px; user-select: none;
+    transition: background 0.1s, color 0.1s;
+  }
+  .tbl-row:hover { background: #161b22; color: #c9d1d9; }
+  .tbl-arrow { color: #484f58; font-size: 10px; width: 10px; flex-shrink: 0; transition: transform 0.15s; }
+  .tbl-arrow.open { transform: rotate(90deg); }
+  .tbl-icon { color: #388bfd; font-size: 12px; }
+  .tbl-name-text { flex: 1; }
+  .tbl-count { color: #484f58; font-size: 11px; }
+
+  .tbl-cols { display: none; }
+  .tbl-cols.open { display: block; }
+  .col-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 14px 4px 36px; font-size: 12px; color: #484f58;
+  }
+  .col-pk { color: #ffa657; font-size: 10px; }
+  .col-name { color: #8b949e; flex: 1; }
+  .col-type { color: #388bfd; font-size: 11px; }
+  .col-idx { color: #3fb950; font-size: 9px; font-weight: 700; letter-spacing: .5px; background: #1a2d1e; border: 1px solid #3fb95055; border-radius: 3px; padding: 0 3px; }
+
+  /* Main */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  .editor-wrap { padding: 20px 24px 0; }
+  .editor-label { color: #484f58; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  textarea {
+    width: 100%; height: 120px; background: #0d1117; color: #79c0ff;
+    border: 1px solid #21262d; padding: 14px 16px;
+    font-family: 'Courier New', monospace; font-size: 14px;
+    resize: vertical; outline: none; border-radius: 6px; line-height: 1.65;
+    transition: border-color 0.15s;
+  }
+  textarea:focus { border-color: #388bfd; }
+  textarea::placeholder { color: #484f58; }
+
+  .controls { display: flex; align-items: center; gap: 12px; margin-top: 12px; padding: 0 24px 16px; border-bottom: 1px solid #21262d; }
+  button.run {
+    background: #238636; color: #fff; border: none; padding: 8px 20px;
+    cursor: pointer; font-family: 'Courier New', monospace; font-size: 13px;
+    border-radius: 6px; transition: background 0.15s;
+  }
+  button.run:hover { background: #2ea043; }
+  button.run:disabled { background: #21262d; color: #484f58; cursor: not-allowed; }
+  button.clear-btn {
+    background: transparent; color: #484f58; border: 1px solid #21262d;
+    padding: 8px 14px; cursor: pointer; font-family: 'Courier New', monospace;
+    font-size: 13px; border-radius: 6px; transition: all 0.15s;
+  }
+  button.clear-btn:hover { color: #c9d1d9; border-color: #484f58; }
+  button.fmt-btn {
+    background: transparent; color: #484f58; border: 1px solid #21262d;
+    padding: 8px 14px; cursor: pointer; font-family: 'Courier New', monospace;
+    font-size: 13px; border-radius: 6px; transition: all 0.15s;
+  }
+  button.fmt-btn:hover { color: #d2a8ff; border-color: #6e40c9; }
+  .shortcut { color: #484f58; font-size: 12px; }
+
+  .speed-group { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+  .speed-label { color: #484f58; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; }
+  .speed-val { color: #58a6ff; font-size: 12px; width: 52px; text-align: right; }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 120px; height: 4px; background: #21262d; border-radius: 2px; outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: #388bfd; border: 2px solid #0d1117; cursor: pointer; transition: background 0.15s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover { background: #58a6ff; }
+  input[type=range]::-moz-range-thumb {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: #388bfd; border: 2px solid #0d1117; cursor: pointer;
+  }
+
+  .scroll-area { flex: 1; overflow-y: auto; padding: 20px 24px; }
+
+  /* Pipeline */
+  .pipeline { display: none; margin-bottom: 24px; }
+  .pipeline.visible { display: block; }
+  .pipeline-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .pipeline-title { color: #484f58; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+  .pipeline-toggle { color: #484f58; font-size: 12px; cursor: pointer; background: none; border: none; font-family: inherit; }
+  .pipeline-toggle:hover { color: #c9d1d9; }
+
+  .pipeline-stages { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+  /* SQL execution order panel */
+  .stage-exec-order { grid-column: 1 / -1; }
+  .exec-order-flow { display: flex; flex-wrap: wrap; gap: 0; align-items: center; padding: 4px 0; }
+  .exec-order-item {
+    display: flex; align-items: center; gap: 0;
+    opacity: 0; animation: fadeUp 0.25s ease forwards;
+  }
+  .exec-order-badge {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 6px 12px; border-radius: 5px; font-size: 11px; font-weight: bold;
+    border: 1px solid #21262d; letter-spacing: 0.5px; min-width: 60px; text-align: center;
+    transition: all 0.2s;
+  }
+  .exec-order-badge.active {
+    background: #0d2d1a; border-color: #238636; color: #3fb950;
+  }
+  .exec-order-badge.inactive {
+    background: #0d1117; border-color: #1a1a1a; color: #30363d;
+  }
+  .exec-order-badge .eo-num { font-size: 9px; opacity: 0.55; margin-bottom: 2px; font-weight: normal; }
+  .exec-order-arrow { color: #21262d; font-size: 14px; padding: 0 4px; flex-shrink: 0; }
+
+  .stage {
+    background: #0d1117; border: 1px solid #21262d; border-radius: 8px;
+    overflow: hidden; opacity: 0; transform: translateY(8px);
+    transition: opacity 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
+  }
+  .stage.active { opacity: 1; transform: translateY(0); }
+  .stage.running { border-color: #388bfd; }
+  .stage.done { border-color: #238636; }
+
+  .stage-head {
+    padding: 10px 14px; display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid #21262d;
+  }
+  .stage-num {
+    width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-size: 11px; font-weight: bold;
+    background: #21262d; color: #484f58; flex-shrink: 0; transition: all 0.3s;
+  }
+  .stage.running .stage-num { background: #1e3a5f; color: #58a6ff; }
+  .stage.done .stage-num { background: #0d2d1a; color: #3fb950; }
+  .stage-name { font-size: 12px; font-weight: bold; color: #484f58; letter-spacing: 1px; transition: color 0.3s; }
+  .stage.running .stage-name { color: #58a6ff; }
+  .stage.done .stage-name { color: #3fb950; }
+  .stage-desc { font-size: 11px; color: #484f58; margin-left: auto; }
+
+  .stage-body { padding: 12px 14px; min-height: 80px; max-height: 280px; overflow-y: auto; }
+
+  /* Token badges */
+  .tokens-wrap { display: flex; flex-wrap: wrap; gap: 5px; }
+  .token-badge {
+    display: inline-flex; flex-direction: column; align-items: center;
+    padding: 3px 7px; border-radius: 4px; font-size: 11px; line-height: 1.4;
+    opacity: 0; animation: fadeUp 0.2s ease forwards;
+  }
+  .token-badge .tok-lit { font-weight: bold; }
+  .token-badge .tok-type { font-size: 9px; opacity: 0.6; margin-top: 1px; }
+
+  .token-badge.keyword  { background: #1e3a5f; color: #79c0ff; border: 1px solid #1f4b7a; }
+  .token-badge.type     { background: #2d1f5f; color: #d2a8ff; border: 1px solid #3d2a7a; }
+  .token-badge.ident    { background: #1a3a1a; color: #7ee787; border: 1px solid #2a5a2a; }
+  .token-badge.literal  { background: #3a2a0d; color: #ffa657; border: 1px solid #5a3a0d; }
+  .token-badge.operator { background: #3a0d2a; color: #f778ba; border: 1px solid #5a0d3a; }
+  .token-badge.punct    { background: #1a1a2a; color: #8b949e; border: 1px solid #21262d; }
+
+  /* AST tree */
+  .ast-tree { font-size: 12px; line-height: 1.8; }
+  .ast-node { opacity: 0; animation: fadeUp 0.2s ease forwards; }
+  .ast-node-type { color: #d2a8ff; font-weight: bold; }
+  .ast-node-key { color: #8b949e; }
+  .ast-node-val { color: #ffa657; }
+  .ast-node-val.str { color: #a5d6ff; }
+  .ast-node-val.bool { color: #f778ba; }
+  .ast-node-val.null { color: #484f58; font-style: italic; }
+  .ast-indent { margin-left: 16px; border-left: 1px solid #21262d; padding-left: 10px; }
+
+  /* Exec steps */
+  .exec-steps { }
+  .exec-step {
+    display: flex; gap: 10px; align-items: flex-start; margin-bottom: 8px;
+    opacity: 0; animation: fadeUp 0.2s ease forwards;
+  }
+  .exec-step-num {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: #0d2d1a; color: #3fb950; border: 1px solid #238636;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: bold; flex-shrink: 0; margin-top: 1px;
+  }
+  .exec-step-text { color: #c9d1d9; font-size: 12px; line-height: 1.6; }
+
+  /* Arrow between stages */
+  .pipeline-stages { position: relative; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Results */
+  .msg { padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-bottom: 16px; }
+  .msg.ok  { background: #0d2d1a; border: 1px solid #238636; color: #3fb950; }
+  .msg.err { background: #2d0d0d; border: 1px solid #da3633; color: #f85149; }
+
+  .result-meta { color: #484f58; font-size: 12px; margin-bottom: 10px; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: #161b22; color: #388bfd; text-align: left; padding: 9px 14px; border: 1px solid #21262d; white-space: nowrap; }
+  td { padding: 7px 14px; border: 1px solid #21262d; white-space: nowrap; }
+  tr:nth-child(even) td { background: #0d1117; }
+  tr:hover td { background: #161b22; }
+  td.null-val { color: #484f58; font-style: italic; }
+
+  .history-wrap { margin-top: 28px; }
+  .hist-header { display: flex; align-items: center; margin-bottom: 10px; }
+  .hist-header h3 { color: #484f58; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; flex: 1; }
+  .hist-clear-btn {
+    background: transparent; color: #484f58; border: 1px solid #21262d;
+    padding: 3px 10px; cursor: pointer; font-family: 'Courier New', monospace;
+    font-size: 11px; border-radius: 4px; transition: all 0.15s;
+  }
+  .hist-clear-btn:hover { color: #f85149; border-color: #da3633; }
+  .hist-item {
+    padding: 7px 12px; background: #0d1117; border: 1px solid #21262d;
+    border-radius: 4px; margin-bottom: 5px; cursor: pointer; font-size: 12px;
+    color: #8b949e; display: flex; justify-content: space-between; align-items: center;
+    transition: border-color 0.15s;
+  }
+  .hist-item:hover { border-color: #388bfd; color: #c9d1d9; }
+  .hist-item .htime { color: #484f58; font-size: 11px; flex-shrink: 0; margin-left: 12px; }
+  .hist-pagination { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+  .hist-page-btn {
+    background: transparent; color: #484f58; border: 1px solid #21262d;
+    padding: 4px 12px; cursor: pointer; font-family: 'Courier New', monospace;
+    font-size: 11px; border-radius: 4px; transition: all 0.15s;
+  }
+  .hist-page-btn:hover:not(:disabled) { color: #c9d1d9; border-color: #484f58; }
+  .hist-page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .hist-page-info { color: #484f58; font-size: 11px; flex: 1; text-align: center; }
+
+  /* Autocomplete dropdown */
+  .ac-wrap { position: relative; }
+  #ac-list {
+    display: none; position: absolute; z-index: 100;
+    top: 100%; left: 0; right: 0;
+    background: #161b22; border: 1px solid #388bfd;
+    border-top: none; border-radius: 0 0 6px 6px;
+    max-height: 200px; overflow-y: auto;
+  }
+  #ac-list.open { display: block; }
+  .ac-item {
+    padding: 7px 14px; font-size: 13px; color: #8b949e;
+    cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    transition: background 0.1s, color 0.1s;
+  }
+  .ac-item:hover, .ac-item.active { background: #21262d; color: #c9d1d9; }
+
+  .pipeline-collapsed .stage-body { display: none; }
+
+  /* WAL panel */
+  .wal-panel { margin-bottom: 24px; background: #0d1117; border: 1px solid #21262d; border-radius: 8px; overflow: hidden; }
+  .wal-panel.crashed { border-color: #da3633; animation: crashFlash 0.4s ease; }
+  @keyframes crashFlash { 0%,100%{border-color:#da3633} 25%,75%{border-color:#f85149} 50%{border-color:#ff6b6b} }
+  .wal-panel-header { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid #21262d; background: #161b22; }
+  .wal-panel-title { color: #484f58; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; flex: 1; }
+  .wal-status { color: #8b949e; font-size: 11px; }
+  .wal-status .wal-cp-lsn { color: #d2a8ff; }
+  .wal-status .wal-since { color: #ffa657; }
+  .wal-btn-group { display: flex; gap: 6px; }
+  .wal-btn { background: transparent; border: 1px solid #21262d; padding: 4px 10px; cursor: pointer; font-family: 'Courier New', monospace; font-size: 11px; border-radius: 4px; transition: all 0.15s; white-space: nowrap; }
+  .wal-btn.checkpoint { color: #d2a8ff; }
+  .wal-btn.checkpoint:hover { border-color: #d2a8ff; background: #1a0d3a; }
+  .wal-btn.crash { color: #f85149; }
+  .wal-btn.crash:hover { border-color: #f85149; background: #2d0d0d; }
+  .wal-btn.recover { color: #3fb950; }
+  .wal-btn.recover:hover { border-color: #3fb950; background: #0d2d1a; }
+  .wal-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .wal-body { overflow-x: auto; max-height: 260px; overflow-y: auto; }
+  .wal-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .wal-table th { background: #0d1117; color: #484f58; text-align: left; padding: 6px 12px; border-bottom: 1px solid #21262d; white-space: nowrap; font-weight: normal; letter-spacing: 0.5px; font-size: 10px; text-transform: uppercase; }
+  .wal-table td { padding: 5px 12px; border-bottom: 1px solid #161b22; white-space: nowrap; font-family: 'Courier New', monospace; }
+  .wal-table tr:last-child td { border-bottom: none; }
+  .wal-table tr.wal-new td { background: #0d2d1a; animation: walRow 0.3s ease; }
+  .wal-table tr.wal-cp td { background: #1a0d3a; }
+  @keyframes walRow { from { opacity: 0; background: #0d3d1a; } to { opacity: 1; } }
+  .wal-lsn { color: #484f58; }
+  .wal-xid { color: #8b949e; }
+  .wal-op { font-weight: bold; }
+  .wal-op.INSERT { color: #3fb950; }
+  .wal-op.UPDATE { color: #58a6ff; }
+  .wal-op.DELETE { color: #f85149; }
+  .wal-op.BEGIN { color: #ffa657; }
+  .wal-op.COMMIT { color: #ffa657; }
+  .wal-op.ROLLBACK { color: #ffa657; }
+  .wal-op.CHECKPOINT { color: #d2a8ff; }
+  .wal-tbl { color: #7ee787; }
+  .wal-detail { color: #8b949e; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+  .wal-time { color: #484f58; font-size: 11px; }
+  .wal-empty { color: #484f58; font-size: 12px; font-style: italic; padding: 16px 14px; }
+  .wal-crashed-banner { background: #2d0d0d; border-bottom: 1px solid #da3633; color: #f85149; font-size: 12px; padding: 8px 14px; display: none; }
+  .wal-crashed-banner.visible { display: block; }
+
+  /* Index Advisor panel */
+  .idx-panel { margin-bottom: 24px; background: #0d1117; border: 1px solid #21262d; border-radius: 8px; overflow: hidden; }
+  .idx-panel-header { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid #21262d; background: #161b22; }
+  .idx-panel-title { color: #484f58; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; flex: 1; }
+  .idx-count { color: #ffa657; font-size: 12px; }
+  .idx-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .idx-card { background: #161b22; border: 1px solid #21262d; border-radius: 6px; padding: 10px 14px; opacity: 0; animation: fadeUp 0.25s ease forwards; }
+  .idx-reason { color: #8b949e; font-size: 12px; margin-bottom: 8px; line-height: 1.5; }
+  .idx-sql-wrap { display: flex; align-items: center; gap: 8px; }
+  .idx-sql { color: #ffa657; font-size: 12px; font-family: 'Courier New', monospace; flex: 1; background: #0d1117; padding: 6px 10px; border-radius: 4px; border: 1px solid #21262d; }
+  .idx-run-btn { background: transparent; color: #484f58; border: 1px solid #21262d; padding: 4px 12px; cursor: pointer; font-family: 'Courier New', monospace; font-size: 12px; border-radius: 4px; transition: all 0.15s; white-space: nowrap; }
+  .idx-run-btn:hover { color: #3fb950; border-color: #238636; }
+
+  /* Step-through panel */
+  .step-panel { margin-bottom: 24px; background: #0d1117; border: 1px solid #21262d; border-radius: 8px; overflow: hidden; }
+  .step-panel-header { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid #21262d; background: #161b22; }
+  .step-panel-title { color: #484f58; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; flex: 1; }
+  .step-counter { color: #58a6ff; font-size: 12px; }
+  .step-truncated { color: #ffa657; font-size: 11px; }
+  .step-body { display: flex; min-height: 200px; }
+  .step-tree-wrap { width: 200px; flex-shrink: 0; border-right: 1px solid #21262d; padding: 12px; overflow-y: auto; }
+  .step-tree-label { color: #484f58; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+  .node-box { padding: 7px 10px; border: 1px solid #21262d; border-radius: 5px; margin-bottom: 4px; background: #0d1117; transition: all 0.15s; }
+  .node-box.active { border-color: #388bfd; background: #0d2040; }
+  .node-box.has-rows { border-color: #238636; }
+  .node-box.active.has-rows { border-color: #388bfd; background: #0d2040; }
+  .node-box-type { color: #8b949e; font-size: 11px; font-weight: bold; }
+  .node-box.active .node-box-type { color: #79c0ff; }
+  .node-box-stats { color: #484f58; font-size: 10px; margin-top: 2px; }
+  .node-box.has-rows .node-box-stats { color: #3fb950; }
+  .node-connector { width: 1px; height: 8px; background: #21262d; margin: 0 0 4px 16px; }
+  .step-event-wrap { flex: 1; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .step-event-label { color: #484f58; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+  .step-event-card { background: #161b22; border: 1px solid #21262d; border-radius: 6px; padding: 10px 14px; font-size: 12px; }
+  .step-event-node { color: #58a6ff; font-weight: bold; margin-bottom: 4px; }
+  .step-action-badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: bold; margin-bottom: 6px; }
+  .step-action-badge.scan  { background: #1e3a5f; color: #79c0ff; }
+  .step-action-badge.pass  { background: #0d2d1a; color: #3fb950; }
+  .step-action-badge.reject{ background: #2d1515; color: #f85149; }
+  .step-action-badge.emit  { background: #2d1f5f; color: #d2a8ff; }
+  .step-action-badge.match { background: #2d2000; color: #ffa657; }
+  .step-action-badge.skip  { background: #21262d; color: #484f58; }
+  .step-action-badge.dedup { background: #21262d; color: #484f58; }
+  .step-row-data { color: #c9d1d9; line-height: 1.7; }
+  .step-row-key { color: #8b949e; }
+  .step-row-val { color: #ffa657; }
+  .step-placeholder { color: #484f58; font-size: 12px; font-style: italic; padding: 16px 0; }
+  .step-controls { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid #21262d; }
+  .step-btn { background: transparent; color: #484f58; border: 1px solid #21262d; padding: 5px 12px; cursor: pointer; font-family: 'Courier New', monospace; font-size: 12px; border-radius: 5px; transition: all 0.15s; }
+  .step-btn:hover { color: #c9d1d9; border-color: #484f58; }
+  .step-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .step-btn.play-active { color: #3fb950; border-color: #238636; }
+  .step-progress { flex: 1; height: 3px; background: #21262d; border-radius: 2px; overflow: hidden; }
+  .step-progress-fill { height: 100%; background: #388bfd; transition: width 0.1s; }
+
+</style>
+</head>
+<body>
+<header>
+  <h1>MiniDB</h1>
+  <span class="tag">in-memory · PostgreSQL subset · Go</span>
+  <button class="seed-btn" id="seedBtn" onclick="seedDB()">⚡ Seed Game DB</button>
+</header>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-head" onclick="toggleSidebarSection('panels')">
+        <span>Panels</span>
+        <span class="sidebar-head-arrow open" id="sidebar-arrow-panels">▶</span>
+      </div>
+      <div class="sidebar-section-body panels-body" id="sidebar-body-panels">
+        <div class="stoggle" id="stoggle-lexer" onclick="toggleSection('lexer')">
+          <span class="stoggle-ind"></span><span>Lexer</span>
+        </div>
+        <div class="stoggle" id="stoggle-parser" onclick="toggleSection('parser')">
+          <span class="stoggle-ind"></span><span>Parser</span>
+        </div>
+        <div class="stoggle" id="stoggle-executor" onclick="toggleSection('executor')">
+          <span class="stoggle-ind"></span><span>Executor</span>
+        </div>
+        <div class="stoggle" id="stoggle-exec-order" onclick="toggleSection('exec-order')">
+          <span class="stoggle-ind"></span><span>SQL Execution Order</span>
+        </div>
+        <div class="stoggle" id="stoggle-stepthrough" onclick="toggleSection('stepthrough')">
+          <span class="stoggle-ind"></span><span>Step Through</span>
+        </div>
+        <div class="stoggle" id="stoggle-index-advisor" onclick="toggleSection('index-advisor')">
+          <span class="stoggle-ind"></span><span>Index Advisor</span>
+        </div>
+        <div class="stoggle on" id="stoggle-wal" onclick="toggleSection('wal')">
+          <span class="stoggle-ind"></span><span>WAL Log</span>
+        </div>
+      </div>
+    </div>
+    <div class="sidebar-sep"></div>
+    <div class="sidebar-section grows">
+      <div class="sidebar-head" onclick="toggleSidebarSection('tables')">
+        <span>Tables</span>
+        <span class="sidebar-head-arrow open" id="sidebar-arrow-tables">▶</span>
+      </div>
+      <div class="sidebar-section-body tables-body" id="sidebar-body-tables">
+        <div id="tableList"><span class="no-tables">none yet</span></div>
+      </div>
+    </div>
+  </aside>
+  <div class="main">
+    <div class="editor-wrap">
+      <div class="editor-label">SQL Query</div>
+      <div class="ac-wrap">
+        <textarea id="query" placeholder="SELECT * FROM users WHERE age > 25;" spellcheck="false"></textarea>
+        <div id="ac-list"></div>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="run" id="runBtn" onclick="runQuery()">▶ Run</button>
+      <button class="clear-btn" onclick="clearQuery()">Clear</button>
+      <button class="fmt-btn" onclick="formatQuery()">⌥ Format</button>
+      <span class="shortcut">Ctrl+Enter to run</span>
+      <div class="speed-group">
+        <span class="speed-label">Speed</span>
+        <input type="range" id="speedSlider" min="0" max="100" value="70" oninput="onSpeedChange(this.value)">
+        <span class="speed-val" id="speedVal">normal</span>
+      </div>
+    </div>
+
+    <div class="scroll-area">
+      <!-- Pipeline visualization -->
+      <div class="pipeline" id="pipeline">
+        <div class="pipeline-header">
+          <span class="pipeline-title">Execution Pipeline</span>
+          <button class="pipeline-toggle" onclick="togglePipeline()">collapse ▲</button>
+        </div>
+        <div class="pipeline-stages" id="pipelineStages">
+          <div class="stage" id="stage-lexer">
+            <div class="stage-head">
+              <div class="stage-num">1</div>
+              <div class="stage-name">LEXER</div>
+              <div class="stage-desc" id="lexer-desc"></div>
+            </div>
+            <div class="stage-body" id="lexer-body"></div>
+          </div>
+          <div class="stage" id="stage-parser">
+            <div class="stage-head">
+              <div class="stage-num">2</div>
+              <div class="stage-name">PARSER</div>
+              <div class="stage-desc" id="parser-desc"></div>
+            </div>
+            <div class="stage-body" id="parser-body"></div>
+          </div>
+          <div class="stage" id="stage-executor">
+            <div class="stage-head">
+              <div class="stage-num">3</div>
+              <div class="stage-name">EXECUTOR</div>
+              <div class="stage-desc" id="executor-desc"></div>
+            </div>
+            <div class="stage-body" id="executor-body"></div>
+          </div>
+          <div class="stage stage-exec-order" id="stage-exec-order" style="display:none">
+            <div class="stage-head">
+              <div class="stage-num">★</div>
+              <div class="stage-name">SQL EXECUTION ORDER</div>
+              <div class="stage-desc" id="exec-order-desc">logical clause evaluation sequence</div>
+            </div>
+            <div class="stage-body" id="exec-order-body">
+              <div class="exec-order-flow" id="exec-order-flow"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step-through execution panel -->
+      <div class="step-panel" id="stepPanel" style="display:none">
+        <div class="step-panel-header">
+          <span class="step-panel-title">Step-Through Execution</span>
+          <span class="step-counter" id="stepCounter">0 / 0</span>
+          <span class="step-truncated" id="stepTruncated" style="display:none">· capped at 500 events</span>
+        </div>
+        <div class="step-body">
+          <div class="step-tree-wrap">
+            <div class="step-tree-label">Operator Tree</div>
+            <div id="stepTree"></div>
+          </div>
+          <div class="step-event-wrap">
+            <div class="step-event-label">Current Event</div>
+            <div id="stepEventCard"><div class="step-placeholder">Press ▶ Next to step through</div></div>
+          </div>
+        </div>
+        <div class="step-controls">
+          <button class="step-btn" id="stepResetBtn" onclick="stepReset()">⏮ Reset</button>
+          <button class="step-btn" id="stepBackBtn" onclick="stepBack()">◀ Back</button>
+          <button class="step-btn" id="stepPlayBtn" onclick="stepTogglePlay()">▶ Play</button>
+          <button class="step-btn" id="stepFwdBtn" onclick="stepForward()">▶ Next</button>
+          <div class="step-progress"><div class="step-progress-fill" id="stepProgressFill" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <!-- Index Advisor panel -->
+      <div class="idx-panel" id="idxPanel" style="display:none">
+        <div class="idx-panel-header">
+          <span class="idx-panel-title">Index Advisor</span>
+          <span class="idx-count" id="idxCount"></span>
+        </div>
+        <div class="idx-body" id="idxBody"></div>
+      </div>
+
+      <!-- WAL panel -->
+      <div class="wal-panel" id="walPanel">
+        <div class="wal-panel-header">
+          <span class="wal-panel-title">Write-Ahead Log</span>
+          <span class="wal-status" id="walStatus"></span>
+          <div class="wal-btn-group">
+            <button class="wal-btn checkpoint" onclick="takeCheckpoint()" title="Snapshot current DB state to WAL">Checkpoint</button>
+            <button class="wal-btn crash" onclick="crashDB()" id="crashBtn" title="Simulate crash — revert to last checkpoint">Crash</button>
+            <button class="wal-btn recover" onclick="recoverDB()" id="recoverBtn" title="Replay WAL to recover committed data">Recover</button>
+          </div>
+        </div>
+        <div class="wal-crashed-banner" id="walCrashedBanner">⚡ CRASHED — DB reverted to checkpoint. Run Recover to replay WAL and restore committed data.</div>
+        <div class="wal-body">
+          <div id="walEmpty" class="wal-empty">No WAL records yet — run INSERT, UPDATE, DELETE, or BEGIN/COMMIT to generate records.</div>
+          <table class="wal-table" id="walTable" style="display:none">
+            <thead><tr>
+              <th>LSN</th><th>XID</th><th>OP</th><th>Table</th><th>Detail</th><th>Time</th>
+            </tr></thead>
+            <tbody id="walBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Query result -->
+      <div id="result"></div>
+
+      <!-- History -->
+      <div id="historyWrap" class="history-wrap" style="display:none">
+        <div class="hist-header">
+          <h3>History</h3>
+          <button class="hist-clear-btn" onclick="clearHistory()">Clear</button>
+        </div>
+        <div id="historyList"></div>
+        <div class="hist-pagination" id="histPagination" style="display:none">
+          <button class="hist-page-btn" id="histPrevBtn" onclick="histGoPage(histPage - 1)">← Prev</button>
+          <span class="hist-page-info" id="histPageInfo"></span>
+          <button class="hist-page-btn" id="histNextBtn" onclick="histGoPage(histPage + 1)">Next →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const queryHistory = [];
+const HIST_PAGE_SIZE = 15;
+let histPage = 0;
+let pipelineCollapsed = false;
+
+// Section visibility — persisted in localStorage
+const SECTION_KEYS = ['lexer', 'parser', 'executor', 'exec-order', 'stepthrough', 'index-advisor', 'wal'];
+const sectionVisible = (() => {
+  const saved = JSON.parse(localStorage.getItem('minidb-sections') || '{}');
+  const defaults = { lexer: true, parser: true, executor: true, 'exec-order': true, stepthrough: true, 'index-advisor': true, wal: true };
+  return Object.assign(defaults, saved);
+})();
+
+function saveSectionPrefs() {
+  localStorage.setItem('minidb-sections', JSON.stringify(sectionVisible));
+}
+
+function toggleSidebarSection(key) {
+  const body = document.getElementById('sidebar-body-' + key);
+  const arrow = document.getElementById('sidebar-arrow-' + key);
+  const nowCollapsed = body.classList.toggle('collapsed');
+  arrow.classList.toggle('open', !nowCollapsed);
+}
+
+function toggleSection(key) {
+  sectionVisible[key] = !sectionVisible[key];
+  saveSectionPrefs();
+  applySectionVisibility();
+}
+
+function applySectionVisibility() {
+  const map = { lexer: 'stage-lexer', parser: 'stage-parser', executor: 'stage-executor' };
+  for (const [key, id] of Object.entries(map)) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = sectionVisible[key] ? '' : 'none';
+  }
+  // stepthrough: hide panel if toggled off (only matters if it's currently shown)
+  const stepPanel = document.getElementById('stepPanel');
+  if (stepPanel && stepPanel.dataset.hasData === '1' && !sectionVisible['stepthrough']) {
+    stepPanel.style.display = 'none';
+  } else if (stepPanel && stepPanel.dataset.hasData === '1' && sectionVisible['stepthrough']) {
+    stepPanel.style.display = '';
+  }
+  // index-advisor: same pattern
+  const idxPanel = document.getElementById('idxPanel');
+  if (idxPanel && idxPanel.dataset.hasData === '1' && !sectionVisible['index-advisor']) {
+    idxPanel.style.display = 'none';
+  } else if (idxPanel && idxPanel.dataset.hasData === '1' && sectionVisible['index-advisor']) {
+    idxPanel.style.display = '';
+  }
+  // wal panel: always visible when enabled
+  const walPanel = document.getElementById('walPanel');
+  if (walPanel) walPanel.style.display = sectionVisible['wal'] ? '' : 'none';
+  // sync toggle indicators in sidebar
+  SECTION_KEYS.forEach(k => {
+    const el = document.getElementById('stoggle-' + k);
+    if (el) el.classList.toggle('on', !!sectionVisible[k]);
+  });
+}
+
+// Initialize sidebar toggles on load
+applySectionVisibility();
+
+// slider 0 = instant, 100 = slowest
+// exponential curve so mid-range feels "normal"
+let speed = sliderToSpeed(70);
+
+function sliderToSpeed(v) {
+  v = Number(v);
+  if (v === 100) return { tokenStep: 0, tokenSettle: 0, parserSettle: 0, execStep: 0, execSettle: 0 };
+  const t = Math.round(Math.pow((100 - v) / 100, 2.5) * 200);
+  return {
+    tokenStep:    t,
+    tokenSettle:  Math.round(t * 2.5),
+    parserSettle: Math.round(t * 3),
+    execStep:     Math.round(t * 1.5),
+    execSettle:   Math.round(t * 2),
+  };
+}
+
+function sliderLabel(v) {
+  v = Number(v);
+  if (v === 100) return 'instant';
+  if (v >= 75)   return 'fast';
+  if (v >= 45)   return 'normal';
+  if (v >= 20)   return 'slow';
+  return 'very slow';
+}
+
+function onSpeedChange(v) {
+  speed = sliderToSpeed(v);
+  document.getElementById('speedVal').textContent = sliderLabel(v);
+}
+
+document.getElementById('query').addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') runQuery();
+});
+
+async function runQuery() {
+  const sql = document.getElementById('query').value.trim();
+  if (!sql) return;
+
+  const btn = document.getElementById('runBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Running';
+
+  // Reset pipeline
+  resetPipeline();
+  document.getElementById('result').innerHTML = '';
+  document.getElementById('pipeline').classList.add('visible');
+
+  try {
+    const res = await fetch('/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sql }),
+    });
+    const data = await res.json();
+
+    pushHistory(sql);
+
+    if (data.error && !data.tokens) {
+      // Complete failure before lexing
+      document.getElementById('result').innerHTML = `<div class="msg err">✗ ${esc(data.error)}</div>`;
+    } else {
+      // Animate pipeline in sequence
+      await animateLexer(data.tokens || []);
+      await animateParser(data.ast, data.error);
+      await animateExecutor(data.execTrace || [], data.error);
+      await animateExecOrder(data.ast);
+      renderResult(data);
+      initStepPanel(data);
+      renderIdxPanel(data);
+    }
+
+    refreshTables(data);
+    fetchWAL();
+  } catch (err) {
+    document.getElementById('result').innerHTML = `<div class="msg err">✗ Connection error: ${esc(err.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '▶ Run';
+  }
+}
+
+function resetPipeline() {
+  const stageMap = { lexer: 'stage-lexer', parser: 'stage-parser', executor: 'stage-executor' };
+  for (const [key, id] of Object.entries(stageMap)) {
+    const el = document.getElementById(id);
+    el.className = 'stage';
+    el.style.display = sectionVisible[key] ? '' : 'none';
+  }
+  document.getElementById('lexer-body').innerHTML = '';
+  document.getElementById('parser-body').innerHTML = '';
+  document.getElementById('executor-body').innerHTML = '';
+  document.getElementById('lexer-desc').textContent = '';
+  document.getElementById('parser-desc').textContent = '';
+  document.getElementById('executor-desc').textContent = '';
+  document.getElementById('stage-exec-order').style.display = 'none';
+  document.getElementById('exec-order-flow').innerHTML = '';
+  document.getElementById('stepPanel').style.display = 'none';
+  const idxPanel = document.getElementById('idxPanel');
+  idxPanel.style.display = 'none';
+  idxPanel.dataset.hasData = '0';
+}
+
+function delay(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+async function animateLexer(tokens) {
+  if (!sectionVisible['lexer']) return;
+  const stage = document.getElementById('stage-lexer');
+  const body = document.getElementById('lexer-body');
+  const desc = document.getElementById('lexer-desc');
+
+  stage.classList.add('active', 'running');
+  await delay(80);
+
+  desc.textContent = `${tokens.length} tokens`;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'tokens-wrap';
+  body.appendChild(wrap);
+
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    const badge = document.createElement('div');
+    badge.className = `token-badge ${t.category}`;
+    badge.style.animationDelay = `${i * speed.tokenStep}ms`;
+    badge.innerHTML = `<span class="tok-lit">${esc(t.literal)}</span><span class="tok-type">${esc(t.typeName)}</span>`;
+    wrap.appendChild(badge);
+  }
+
+  await delay(tokens.length * speed.tokenStep + speed.tokenSettle);
+  stage.classList.remove('running');
+  stage.classList.add('done');
+}
+
+async function animateParser(ast, error) {
+  if (!sectionVisible['parser']) return;
+  const stage = document.getElementById('stage-parser');
+  const body = document.getElementById('parser-body');
+  const desc = document.getElementById('parser-desc');
+
+  stage.classList.add('active', 'running');
+  await delay(80);
+
+  if (error && !ast) {
+    desc.textContent = 'parse error';
+    body.innerHTML = `<div style="color:#f85149;font-size:12px">${esc(error)}</div>`;
+    stage.classList.remove('running');
+    return;
+  }
+
+  if (ast) {
+    desc.textContent = ast.type || 'AST';
+    const tree = document.createElement('div');
+    tree.className = 'ast-tree';
+    renderASTNode(tree, ast, 0);
+    body.appendChild(tree);
+  }
+
+  await delay(speed.parserSettle);
+  stage.classList.remove('running');
+  stage.classList.add('done');
+}
+
+async function animateExecutor(steps, error) {
+  if (!sectionVisible['executor']) return;
+  const stage = document.getElementById('stage-executor');
+  const body = document.getElementById('executor-body');
+  const desc = document.getElementById('executor-desc');
+
+  stage.classList.add('active', 'running');
+  await delay(80);
+
+  if (error && steps.length === 0) {
+    desc.textContent = 'error';
+    body.innerHTML = `<div style="color:#f85149;font-size:12px">${esc(error)}</div>`;
+    stage.classList.remove('running');
+    return;
+  }
+
+  desc.textContent = `${steps.length} step(s)`;
+  const wrap = document.createElement('div');
+  wrap.className = 'exec-steps';
+  body.appendChild(wrap);
+
+  steps.forEach((step, i) => {
+    const el = document.createElement('div');
+    el.className = 'exec-step';
+    el.style.animationDelay = `${i * speed.execStep}ms`;
+    el.innerHTML = `<div class="exec-step-num">${i + 1}</div><div class="exec-step-text">${esc(step)}</div>`;
+    wrap.appendChild(el);
+  });
+
+  await delay(steps.length * speed.execStep + speed.execSettle);
+  stage.classList.remove('running');
+  stage.classList.add('done');
+}
+
+const SQL_EXEC_STEPS = [
+  { num: '1',    clause: 'FROM',     key: 'from'     },
+  { num: '2',    clause: 'JOIN',     key: 'join'     },
+  { num: '3',    clause: 'WHERE',    key: 'where'    },
+  { num: '4',    clause: 'GROUP BY', key: 'groupby'  },
+  { num: '5',    clause: 'HAVING',   key: 'having'   },
+  { num: '6',    clause: 'SELECT',   key: 'select'   },
+  { num: '7',    clause: 'DISTINCT', key: 'distinct' },
+  { num: '8',    clause: 'ORDER BY', key: 'orderby'  },
+  { num: '9',    clause: 'LIMIT',    key: 'limit'    },
+  { num: '10',   clause: 'OFFSET',   key: 'offset'   },
+];
+
+function detectActiveSteps(ast) {
+  if (!ast || ast.type !== 'SelectStatement') return null;
+  return {
+    from:     !!ast.table,
+    join:     Array.isArray(ast.joins) && ast.joins.length > 0,
+    where:    !!ast.where,
+    groupby:  !!ast.groupBy,
+    having:   !!ast.having,
+    select:   true,
+    distinct: !!ast.distinct,
+    orderby:  !!ast.orderBy,
+    limit:    ast.limit != null,
+    offset:   ast.offset != null,
+  };
+}
+
+async function animateExecOrder(ast) {
+  const active = detectActiveSteps(ast);
+  if (!active || !sectionVisible['exec-order']) return;
+
+  const panel = document.getElementById('stage-exec-order');
+  const flow = document.getElementById('exec-order-flow');
+  panel.style.display = '';
+  panel.classList.add('active', 'running');
+
+  SQL_EXEC_STEPS.forEach((step, i) => {
+    const isActive = !!active[step.key];
+
+    const item = document.createElement('div');
+    item.className = 'exec-order-item';
+    item.style.animationDelay = `${i * speed.tokenStep}ms`;
+
+    const badge = document.createElement('div');
+    badge.className = `exec-order-badge ${isActive ? 'active' : 'inactive'}`;
+    badge.innerHTML = `<span class="eo-num">${esc(step.num)}</span>${esc(step.clause)}`;
+    item.appendChild(badge);
+
+    if (i < SQL_EXEC_STEPS.length - 1) {
+      const arrow = document.createElement('span');
+      arrow.className = 'exec-order-arrow';
+      arrow.textContent = '→';
+      item.appendChild(arrow);
+    }
+
+    flow.appendChild(item);
+  });
+
+  await delay(SQL_EXEC_STEPS.length * speed.tokenStep + speed.tokenSettle);
+  panel.classList.remove('running');
+  panel.classList.add('done');
+}
+
+function renderResult(data) {
+  const resultEl = document.getElementById('result');
+  if (data.error) {
+    resultEl.innerHTML = `<div class="msg err">✗ ${esc(data.error)}</div>`;
+  } else if (data.columns && data.columns.length > 0) {
+    const rows = data.rows || [];
+    let html = `<div class="result-meta">${rows.length} row${rows.length !== 1 ? 's' : ''}</div>`;
+    html += `<div class="table-wrap"><table><thead><tr>`;
+    html += data.columns.map(c => `<th>${esc(c)}</th>`).join('');
+    html += `</tr></thead><tbody>`;
+    for (const row of rows) {
+      html += `<tr>` + row.map(cell =>
+        cell === null ? `<td class="null-val">NULL</td>` : `<td>${esc(String(cell))}</td>`
+      ).join('') + `</tr>`;
+    }
+    html += `</tbody></table></div>`;
+    resultEl.innerHTML = html;
+  } else if (data.message) {
+    resultEl.innerHTML = `<div class="msg ok">✓ ${esc(data.message)}</div>`;
+  }
+}
+
+// Recursively render an AST node as an indented tree.
+function renderASTNode(parent, node, depth) {
+  if (node === null || node === undefined) return;
+
+  if (typeof node !== 'object') {
+    // Primitive leaf
+    const el = document.createElement('div');
+    el.className = 'ast-node';
+    el.style.animationDelay = `${depth * 60}ms`;
+    const cls = typeof node === 'string' ? 'str' : (typeof node === 'boolean' ? 'bool' : '');
+    el.innerHTML = `<span class="ast-node-val ${cls}">${esc(String(node))}</span>`;
+    parent.appendChild(el);
+    return;
+  }
+
+  if (Array.isArray(node)) {
+    node.forEach((item, i) => {
+      const el = document.createElement('div');
+      el.className = 'ast-node';
+      el.style.animationDelay = `${(depth + i) * 50}ms`;
+      el.innerHTML = `<span class="ast-node-key">[${i}]</span> `;
+      parent.appendChild(el);
+      if (typeof item === 'object' && item !== null) {
+        const indent = document.createElement('div');
+        indent.className = 'ast-indent';
+        parent.appendChild(indent);
+        renderASTNode(indent, item, depth + 1);
+      } else {
+        el.innerHTML += `<span class="ast-node-val ${typeof item === 'string' ? 'str' : ''}">${esc(String(item))}</span>`;
+      }
+    });
+    return;
+  }
+
+  // Object node
+  const typeVal = node.type;
+  if (typeVal) {
+    const typeEl = document.createElement('div');
+    typeEl.className = 'ast-node';
+    typeEl.style.animationDelay = `${depth * 50}ms`;
+    typeEl.innerHTML = `<span class="ast-node-type">${esc(typeVal)}</span>`;
+    parent.appendChild(typeEl);
+  }
+
+  const indent = document.createElement('div');
+  indent.className = 'ast-indent';
+  parent.appendChild(indent);
+
+  let childDepth = depth + 1;
+  for (const [key, val] of Object.entries(node)) {
+    if (key === 'type') continue;
+    if (val === null || val === undefined) continue;
+
+    const keyEl = document.createElement('div');
+    keyEl.className = 'ast-node';
+    keyEl.style.animationDelay = `${childDepth * 50}ms`;
+
+    if (typeof val === 'object') {
+      keyEl.innerHTML = `<span class="ast-node-key">${esc(key)}:</span>`;
+      indent.appendChild(keyEl);
+      const childIndent = document.createElement('div');
+      childIndent.className = 'ast-indent';
+      indent.appendChild(childIndent);
+      renderASTNode(childIndent, val, childDepth + 1);
+    } else {
+      const valCls = typeof val === 'string' ? 'str' : (typeof val === 'boolean' ? 'bool' : '');
+      keyEl.innerHTML = `<span class="ast-node-key">${esc(key)}:</span> <span class="ast-node-val ${valCls}">${esc(String(val))}</span>`;
+      indent.appendChild(keyEl);
+    }
+    childDepth++;
+  }
+}
+
+function togglePipeline() {
+  const stages = document.getElementById('pipelineStages');
+  const btn = document.querySelector('.pipeline-toggle');
+  pipelineCollapsed = !pipelineCollapsed;
+  if (pipelineCollapsed) {
+    stages.style.display = 'none';
+    btn.textContent = 'expand ▼';
+  } else {
+    stages.style.display = 'grid';
+    btn.textContent = 'collapse ▲';
+  }
+}
+
+function clearQuery() {
+  document.getElementById('query').value = '';
+  document.getElementById('result').innerHTML = '';
+  document.getElementById('pipeline').classList.remove('visible');
+  document.getElementById('query').focus();
+}
+
+function pushHistory(sql) {
+  const idx = queryHistory.findIndex(h => h.sql === sql);
+  if (idx !== -1) queryHistory.splice(idx, 1);
+  queryHistory.unshift({ sql, time: new Date().toLocaleTimeString() });
+  if (queryHistory.length > 100) queryHistory.pop();
+  histPage = 0;
+  renderHistory();
+}
+
+function renderHistory() {
+  const wrap = document.getElementById('historyWrap');
+  const list = document.getElementById('historyList');
+  const pagination = document.getElementById('histPagination');
+  const pageInfo = document.getElementById('histPageInfo');
+  if (queryHistory.length === 0) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  const totalPages = Math.ceil(queryHistory.length / HIST_PAGE_SIZE);
+  histPage = Math.max(0, Math.min(histPage, totalPages - 1));
+  const start = histPage * HIST_PAGE_SIZE;
+  const slice = queryHistory.slice(start, start + HIST_PAGE_SIZE);
+  list.innerHTML = slice.map((h, i) =>
+    `<div class="hist-item" onclick="loadHistory(${start + i})">
+      <span>${esc(h.sql.length > 90 ? h.sql.slice(0, 90) + '…' : h.sql)}</span>
+      <span class="htime">${h.time}</span>
+    </div>`
+  ).join('');
+  if (totalPages > 1) {
+    pagination.style.display = 'flex';
+    pageInfo.textContent = `Page ${histPage + 1} of ${totalPages}`;
+    document.getElementById('histPrevBtn').disabled = histPage === 0;
+    document.getElementById('histNextBtn').disabled = histPage >= totalPages - 1;
+  } else {
+    pagination.style.display = 'none';
+  }
+}
+
+function histGoPage(page) {
+  histPage = page;
+  renderHistory();
+}
+
+function loadHistory(i) {
+  document.getElementById('query').value = queryHistory[i].sql;
+  document.getElementById('query').focus();
+}
+
+function clearHistory() {
+  queryHistory.length = 0;
+  histPage = 0;
+  document.getElementById('historyWrap').style.display = 'none';
+}
+
+async function fetchTables() {
+  try {
+    const res = await fetch('/tables');
+    const data = await res.json();
+    renderTables(data.tables || []);
+  } catch (e) {
+    // silently ignore — server may not be ready
+  }
+}
+
+function renderTables(tables) {
+  const el = document.getElementById('tableList');
+  if (!tables || tables.length === 0) {
+    el.innerHTML = `<span class="no-tables">none yet</span>`;
+    return;
+  }
+  el.innerHTML = tables.map(t => {
+    const safeId = `tbl-${CSS.escape(t.name)}`;
+    const cols = (t.columns || []).map(c => `
+      <div class="col-row">
+        <span class="col-pk">${c.primary ? '🔑' : '·'}</span>
+        <span class="col-name">${esc(c.name)}</span>
+        <span class="col-type">${esc(c.type)}</span>
+        ${c.indexed ? `<span class="col-idx" title="${esc(c.indexName)}">IDX</span>` : ''}
+      </div>`).join('');
+    return `
+      <div class="tbl-group">
+        <div class="tbl-row" onclick="toggleTable('${esc(t.name)}', '${safeId}')">
+          <span class="tbl-arrow" id="arrow-${safeId}">▶</span>
+          <span class="tbl-icon">▤</span>
+          <span class="tbl-name-text">${esc(t.name)}</span>
+          <span class="tbl-count">${t.rowCount}</span>
+        </div>
+        <div class="tbl-cols" id="cols-${safeId}">${cols}</div>
+      </div>`;
+  }).join('');
+}
+
+function toggleTable(name, safeId) {
+  const cols = document.getElementById(`cols-${safeId}`);
+  const arrow = document.getElementById(`arrow-${safeId}`);
+  if (!cols) return;
+  const open = cols.classList.toggle('open');
+  arrow.classList.toggle('open', open);
+}
+
+function refreshTables(data) {
+  if (!data.error) fetchTables();
+}
+
+function quickSelect(tableName) {
+  document.getElementById('query').value = `SELECT * FROM ${tableName};`;
+  runQuery();
+}
+
+// Fetch tables on initial load.
+fetchTables();
+
+// ── Query history autocomplete ──────────────────────────────────────────────
+let serverHistory = [];  // all queries from server, ordered last-used first
+let acIndex = -1;
+
+async function fetchHistory() {
+  try {
+    const res = await fetch('/history');
+    const data = await res.json();
+    serverHistory = data.queries || [];
+    // Seed in-memory history panel (deduplicate against already-shown items)
+    const existing = new Set(queryHistory.map(h => h.sql));
+    for (const sql of serverHistory) {
+      if (!existing.has(sql)) {
+        queryHistory.push({ sql, time: '' });
+        existing.add(sql);
+      }
+    }
+    if (serverHistory.length > 0) renderHistory();
+  } catch (_) {}
+}
+
+function acMatches(val) {
+  if (!val.trim()) return [];
+  const lower = val.toLowerCase();
+  return serverHistory.filter(s => s.toLowerCase().includes(lower)).slice(0, 12);
+}
+
+function renderAC(matches) {
+  const list = document.getElementById('ac-list');
+  if (!matches.length) { list.classList.remove('open'); return; }
+  list.innerHTML = matches.map((s, i) =>
+    `<div class="ac-item" data-i="${i}" onmousedown="pickAC(event,${i})">${esc(s.length > 120 ? s.slice(0,120)+'…' : s)}</div>`
+  ).join('');
+  acIndex = -1;
+  list.classList.add('open');
+}
+
+function closeAC() {
+  document.getElementById('ac-list').classList.remove('open');
+  acIndex = -1;
+}
+
+function pickAC(e, i) {
+  e.preventDefault();
+  const list = document.getElementById('ac-list');
+  const items = list.querySelectorAll('.ac-item');
+  document.getElementById('query').value = serverHistory.filter(s =>
+    s.toLowerCase().includes(document.getElementById('query').value.toLowerCase())
+  ).slice(0,12)[i];
+  closeAC();
+}
+
+const queryTA = document.getElementById('query');
+queryTA.addEventListener('input', () => {
+  renderAC(acMatches(queryTA.value));
+});
+queryTA.addEventListener('keydown', e => {
+  const list = document.getElementById('ac-list');
+  const items = list.querySelectorAll('.ac-item');
+  if (!list.classList.contains('open')) return;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    acIndex = Math.min(acIndex + 1, items.length - 1);
+    items.forEach((el, i) => el.classList.toggle('active', i === acIndex));
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    acIndex = Math.max(acIndex - 1, -1);
+    items.forEach((el, i) => el.classList.toggle('active', i === acIndex));
+  } else if (e.key === 'Enter' && acIndex >= 0) {
+    e.preventDefault();
+    items[acIndex].dispatchEvent(new MouseEvent('mousedown'));
+  } else if (e.key === 'Escape') {
+    closeAC();
+  }
+});
+queryTA.addEventListener('blur', () => setTimeout(closeAC, 100));
+
+// After a query runs successfully, add it to serverHistory for immediate autocomplete
+const _origPushHistory = pushHistory;
+pushHistory = function(sql) {
+  _origPushHistory(sql);
+  if (!serverHistory.includes(sql)) serverHistory.unshift(sql);
+  else { serverHistory = [sql, ...serverHistory.filter(s => s !== sql)]; }
+};
+
+fetchHistory();
+
+function formatQuery() {
+  const ta = document.getElementById('query');
+  const formatted = formatSQL(ta.value);
+  if (formatted) ta.value = formatted;
+  ta.focus();
+}
+
+function formatSQL(raw) {
+  let sql = raw.trim();
+  if (!sql) return sql;
+
+  // Strip trailing semicolon — we'll add it back
+  const hasSemi = sql.endsWith(';');
+  if (hasSemi) sql = sql.slice(0, -1).trimEnd();
+
+  // Normalize whitespace
+  sql = sql.replace(/\s+/g, ' ');
+
+  // Uppercase keywords
+  const KW = [
+    'SELECT','DISTINCT','FROM','WHERE','AND','OR','NOT',
+    'INNER','LEFT','OUTER','JOIN','ON','AS',
+    'INSERT','INTO','VALUES','UPDATE','SET',
+    'DELETE','CREATE','DROP','TABLE',
+    'PRIMARY','KEY','GROUP','BY','HAVING','ORDER','LIMIT','OFFSET',
+    'INT','TEXT','BOOLEAN','FLOAT','NULL','TRUE','FALSE',
+  ];
+  const kwRe = new RegExp('\\b(' + KW.join('|') + ')\\b', 'gi');
+  sql = sql.replace(kwRe, m => m.toUpperCase());
+
+  // Collapse multi-word tokens so later regexes are simpler
+  sql = sql
+    .replace(/\bINNER\s+JOIN\b/g, 'INNER JOIN')
+    .replace(/\bLEFT\s+OUTER\s+JOIN\b/g, 'LEFT OUTER JOIN')
+    .replace(/\bLEFT\s+JOIN\b/g, 'LEFT JOIN')
+    .replace(/\bPRIMARY\s+KEY\b/g, 'PRIMARY KEY')
+    .replace(/\bGROUP\s+BY\b/g, 'GROUP BY')
+    .replace(/\bORDER\s+BY\b/g, 'ORDER BY');
+
+  // Major clause breaks (order matters — longer phrases first)
+  sql = sql
+    .replace(/\b(LEFT OUTER JOIN|LEFT JOIN|INNER JOIN|JOIN)\b/g, '\n$1')
+    .replace(/\bFROM\b/g, '\nFROM')
+    .replace(/\bWHERE\b/g, '\nWHERE')
+    .replace(/\bGROUP BY\b/g, '\nGROUP BY')
+    .replace(/\bHAVING\b/g, '\nHAVING')
+    .replace(/\bORDER BY\b/g, '\nORDER BY')
+    .replace(/\bLIMIT\b/g, '\nLIMIT')
+    .replace(/\bOFFSET\b/g, '\nOFFSET')
+    .replace(/\bSET\b/g, '\nSET')
+    .replace(/\bVALUES\b/g, '\nVALUES');
+
+  // AND / OR — indent under WHERE / HAVING
+  sql = sql
+    .replace(/\n(WHERE|HAVING)(.*)/g, (_, kw, rest) => {
+      const indented = rest.replace(/\b(AND|OR)\b/g, '\n  $1');
+      return '\n' + kw + indented;
+    });
+
+  // SELECT column list — split by comma and indent each column
+  sql = sql.replace(/^(SELECT)(.*?)(\nFROM)/s, (_, sel, cols, from) => {
+    const parts = splitTopLevel(cols.trim(), ',');
+    if (parts.length <= 1) return sel + ' ' + cols.trim() + from;
+    return sel + '\n  ' + parts.map(p => p.trim()).join(',\n  ') + from;
+  });
+
+  // INSERT column list and VALUES list — add spaces after commas
+  sql = sql.replace(/\(([^)]+)\)/g, (_, inner) => {
+    const parts = splitTopLevel(inner, ',').map(p => p.trim());
+    return '(' + parts.join(', ') + ')';
+  });
+
+  // Clean up any double blank lines
+  sql = sql.replace(/\n{3,}/g, '\n\n').trim();
+
+  return sql + (hasSemi ? ';' : '');
+}
+
+// Split by delimiter at the top paren level (don't split inside parens).
+function splitTopLevel(str, delim) {
+  const parts = [];
+  let depth = 0, current = '';
+  for (const ch of str) {
+    if (ch === '(') depth++;
+    else if (ch === ')') depth--;
+    if (ch === delim && depth === 0) {
+      parts.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  if (current) parts.push(current);
+  return parts;
+}
+
+async function seedDB() {
+  const btn = document.getElementById('seedBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Seeding…';
+  try {
+    const res = await fetch('/seed', { method: 'POST' });
+    const data = await res.json();
+    const errs = data.errors && data.errors.length ? ` (${data.errors.length} skipped)` : '';
+    btn.textContent = `✓ Seeded ${data.ok} rows${errs}`;
+    fetchTables();
+    fetchWAL();
+    setTimeout(() => { btn.textContent = '⚡ Seed Game DB'; btn.disabled = false; }, 3000);
+  } catch (e) {
+    btn.textContent = '✗ Failed';
+    setTimeout(() => { btn.textContent = '⚡ Seed Game DB'; btn.disabled = false; }, 2000);
+  }
+}
+
+// ── WAL ──────────────────────────────────────────────────────────────────────
+
+let walCrashed = false;
+let lastWalLSNs = new Set();
+
+async function fetchWAL() {
+  try {
+    const res = await fetch('/wal');
+    const data = await res.json();
+    renderWAL(data);
+  } catch (e) { /* ignore */ }
+}
+
+function renderWAL(data) {
+  const records = data.records || [];
+  const cpLSN = data.checkpointLSN || 0;
+  const tbody = document.getElementById('walBody');
+  const empty = document.getElementById('walEmpty');
+  const table = document.getElementById('walTable');
+  const status = document.getElementById('walStatus');
+
+  // Status line
+  const sinceCP = records.filter(r => r.lsn > cpLSN).length;
+  if (cpLSN > 0) {
+    status.innerHTML = `checkpoint at LSN <span class="wal-cp-lsn">${cpLSN}</span> · <span class="wal-since">${sinceCP} record(s) since</span>`;
+  } else {
+    status.innerHTML = `<span class="wal-since">no checkpoint yet</span>`;
+  }
+
+  if (records.length === 0) {
+    empty.style.display = '';
+    table.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  table.style.display = '';
+
+  const newLSNs = new Set(records.map(r => r.lsn));
+  tbody.innerHTML = records.map(r => {
+    const isNew = !lastWalLSNs.has(r.lsn);
+    const isCP = r.op === 'CHECKPOINT';
+    let detail = '';
+    if (r.op === 'INSERT' && r.newRows && r.newRows.length) {
+      detail = rowSummary(r.newRows[0]);
+    } else if (r.op === 'UPDATE' && r.newRows && r.newRows.length) {
+      detail = `${r.oldRows.length} row(s) → ${r.newRows.length} new version(s)`;
+    } else if (r.op === 'DELETE' && r.oldRows && r.oldRows.length) {
+      detail = `${r.oldRows.length} row(s) deleted`;
+    }
+    const t = new Date(r.timestamp);
+    const timeStr = t.toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const xidStr = r.xid > 0 ? r.xid : '—';
+    return `<tr class="${isNew ? 'wal-new' : ''} ${isCP ? 'wal-cp' : ''}">
+      <td class="wal-lsn">${r.lsn}</td>
+      <td class="wal-xid">${xidStr}</td>
+      <td class="wal-op ${r.op}">${r.op}</td>
+      <td class="wal-tbl">${r.table ? esc(r.table) : '—'}</td>
+      <td class="wal-detail">${esc(detail)}</td>
+      <td class="wal-time">${timeStr}</td>
+    </tr>`;
+  }).join('');
+
+  lastWalLSNs = newLSNs;
+
+  // Auto-scroll to bottom
+  const walBody = document.querySelector('.wal-body');
+  if (walBody) walBody.scrollTop = walBody.scrollHeight;
+}
+
+function rowSummary(row) {
+  if (!row) return '';
+  const pairs = Object.entries(row).slice(0, 4).map(([k, v]) => `${k}=${v}`);
+  return pairs.join(', ');
+}
+
+async function takeCheckpoint() {
+  try {
+    const res = await fetch('/wal/checkpoint', { method: 'POST' });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    walCrashed = false;
+    document.getElementById('walCrashedBanner').classList.remove('visible');
+    document.getElementById('walPanel').classList.remove('crashed');
+    fetchWAL();
+  } catch (e) { alert('Checkpoint failed: ' + e.message); }
+}
+
+async function crashDB() {
+  try {
+    const res = await fetch('/wal/crash', { method: 'POST' });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    walCrashed = true;
+    document.getElementById('walCrashedBanner').classList.add('visible');
+    const panel = document.getElementById('walPanel');
+    panel.classList.add('crashed');
+    setTimeout(() => panel.classList.remove('crashed'), 500);
+    fetchTables();
+    fetchWAL();
+  } catch (e) { alert('Crash simulation failed: ' + e.message); }
+}
+
+async function recoverDB() {
+  if (!walCrashed) {
+    alert('Run Crash first to simulate a crash, then Recover will replay the WAL.');
+    return;
+  }
+  try {
+    const res = await fetch('/wal/recover', { method: 'POST' });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    walCrashed = false;
+    document.getElementById('walCrashedBanner').classList.remove('visible');
+    fetchTables();
+    fetchWAL();
+    document.getElementById('result').innerHTML = `<div class="msg ok">✓ ${esc(data.message)}</div>`;
+  } catch (e) { alert('Recovery failed: ' + e.message); }
+}
+
+// Initial WAL load
+fetchWAL();
+
+function esc(str) {
+  return String(str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ─── Index Advisor ────────────────────────────────────────────────────────
+
+function renderIdxPanel(data) {
+  const panel = document.getElementById('idxPanel');
+  const body = document.getElementById('idxBody');
+  const count = document.getElementById('idxCount');
+  const suggestions = data.indexSuggestions || [];
+
+  if (suggestions.length === 0) {
+    panel.style.display = 'none';
+    panel.dataset.hasData = '0';
+    return;
+  }
+
+  panel.dataset.hasData = '1';
+  panel.style.display = sectionVisible['index-advisor'] ? '' : 'none';
+  count.textContent = `${suggestions.length} suggestion${suggestions.length !== 1 ? 's' : ''}`;
+
+  body.innerHTML = '';
+  suggestions.forEach((s, i) => {
+    const card = document.createElement('div');
+    card.className = 'idx-card';
+    card.style.animationDelay = `${i * 60}ms`;
+    card.innerHTML = `
+      <div class="idx-reason">${esc(s.reason)}</div>
+      <div class="idx-sql-wrap">
+        <span class="idx-sql">${esc(s.sql)}</span>
+        <button class="idx-run-btn" onclick="runIndexSQL(${esc(JSON.stringify(s.sql))})">▶ Run</button>
+      </div>`;
+    body.appendChild(card);
+  });
+}
+
+function runIndexSQL(sql) {
+  document.getElementById('query').value = sql;
+  runQuery();
+}
+
+// ─── Step-through execution ───────────────────────────────────────────────
+
+let stepLog = [];
+let stepNodeTree = null;
+let stepPos = -1;
+let stepPlaying = false;
+let stepPlayTimer = null;
+const stepNodeStats = {};
+
+function initStepPanel(data) {
+  const panel = document.getElementById('stepPanel');
+  if (!data.stepLog || data.stepLog.length === 0) {
+    panel.style.display = 'none';
+    panel.dataset.hasData = '0';
+    return;
+  }
+  stepLog = data.stepLog;
+  stepNodeTree = data.nodeTree;
+  stepPos = -1;
+  stepPlaying = false;
+  clearInterval(stepPlayTimer);
+  Object.keys(stepNodeStats).forEach(k => delete stepNodeStats[k]);
+
+  panel.dataset.hasData = '1';
+  panel.style.display = sectionVisible['stepthrough'] ? '' : 'none';
+  document.getElementById('stepCounter').textContent = `0 / ${stepLog.length}`;
+  document.getElementById('stepTruncated').style.display = data.stepTruncated ? '' : 'none';
+  document.getElementById('stepPlayBtn').textContent = '▶ Play';
+  document.getElementById('stepPlayBtn').classList.remove('play-active');
+  document.getElementById('stepProgressFill').style.width = '0%';
+  document.getElementById('stepEventCard').innerHTML = '<div class="step-placeholder">Press ▶ Next to step through</div>';
+
+  renderStepTree();
+  updateStepButtons();
+}
+
+function renderStepTree() {
+  const container = document.getElementById('stepTree');
+  container.innerHTML = '';
+  if (!stepNodeTree) return;
+  renderTreeNode(container, stepNodeTree, true);
+}
+
+function renderTreeNode(parent, node, isRoot) {
+  if (!isRoot) {
+    const conn = document.createElement('div');
+    conn.className = 'node-connector';
+    parent.appendChild(conn);
+  }
+  const box = document.createElement('div');
+  box.className = 'node-box';
+  box.id = `snode-${node.id}`;
+  box.innerHTML = `<div class="node-box-type">${esc(node.nodeType)}</div><div class="node-box-stats" id="snode-stats-${node.id}">0 rows</div>`;
+  parent.appendChild(box);
+
+  if (node.children && node.children.length > 0) {
+    if (node.children.length > 1) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;gap:8px;';
+      parent.appendChild(row);
+      node.children.forEach(child => {
+        const col = document.createElement('div');
+        col.style.cssText = 'flex:1;min-width:0;';
+        renderTreeNode(col, child, false);
+        row.appendChild(col);
+      });
+    } else {
+      renderTreeNode(parent, node.children[0], false);
+    }
+  }
+}
+
+function stepForward() {
+  if (stepPos >= stepLog.length - 1) return;
+  stepPos++;
+  const evt = stepLog[stepPos];
+  accumulateEvent(evt);
+  showEventCard(evt);
+  highlightActiveNode(evt.nodeId);
+  updateStepUI();
+}
+
+function stepBack() {
+  if (stepPos < 0) return;
+  stepPos--;
+  Object.keys(stepNodeStats).forEach(k => delete stepNodeStats[k]);
+  document.querySelectorAll('.node-box').forEach(b => {
+    b.classList.remove('has-rows');
+    const s = b.querySelector('.node-box-stats');
+    if (s) s.textContent = '0 rows';
+  });
+  for (let i = 0; i <= stepPos; i++) accumulateEvent(stepLog[i]);
+  if (stepPos >= 0) {
+    showEventCard(stepLog[stepPos]);
+    highlightActiveNode(stepLog[stepPos].nodeId);
+  } else {
+    document.getElementById('stepEventCard').innerHTML = '<div class="step-placeholder">Press ▶ Next to step through</div>';
+    highlightActiveNode(-1);
+  }
+  updateStepUI();
+}
+
+function accumulateEvent(evt) {
+  if (!stepNodeStats[evt.nodeId]) stepNodeStats[evt.nodeId] = { out: 0, rejected: 0 };
+  const s = stepNodeStats[evt.nodeId];
+  if (evt.action === 'reject' || evt.action === 'dedup' || evt.action === 'skip') {
+    s.rejected++;
+  } else {
+    s.out++;
+  }
+  const el = document.getElementById(`snode-stats-${evt.nodeId}`);
+  if (el) {
+    el.textContent = s.rejected > 0 ? `${s.out} out, ${s.rejected} filtered` : `${s.out} rows`;
+    const box = document.getElementById(`snode-${evt.nodeId}`);
+    if (box && s.out > 0) box.classList.add('has-rows');
+  }
+}
+
+function highlightActiveNode(nodeId) {
+  document.querySelectorAll('.node-box').forEach(b => b.classList.remove('active'));
+  if (nodeId >= 0) {
+    const box = document.getElementById(`snode-${nodeId}`);
+    if (box) box.classList.add('active');
+  }
+}
+
+function showEventCard(evt) {
+  let rowHtml = '';
+  if (evt.row && Object.keys(evt.row).length > 0) {
+    rowHtml = '<div class="step-row-data">' +
+      Object.entries(evt.row).map(([k, v]) =>
+        `<span class="step-row-key">${esc(k)}</span>: <span class="step-row-val">${esc(String(v))}</span>`
+      ).join('&nbsp; &nbsp;') + '</div>';
+  }
+  document.getElementById('stepEventCard').innerHTML =
+    `<div class="step-event-card">
+      <div class="step-event-node">${esc(evt.nodeType)}</div>
+      <span class="step-action-badge ${esc(evt.action)}">${esc(evt.action)}</span>
+      ${rowHtml}
+    </div>`;
+}
+
+function updateStepUI() {
+  const total = stepLog.length;
+  const cur = stepPos + 1;
+  document.getElementById('stepCounter').textContent = `${cur} / ${total}`;
+  document.getElementById('stepProgressFill').style.width = `${total > 0 ? cur / total * 100 : 0}%`;
+  updateStepButtons();
+}
+
+function updateStepButtons() {
+  document.getElementById('stepBackBtn').disabled = stepPos < 0;
+  document.getElementById('stepFwdBtn').disabled = stepPos >= stepLog.length - 1;
+  document.getElementById('stepResetBtn').disabled = stepPos < 0;
+}
+
+function stepReset() {
+  stopStepPlay();
+  stepPos = -1;
+  Object.keys(stepNodeStats).forEach(k => delete stepNodeStats[k]);
+  document.querySelectorAll('.node-box').forEach(b => {
+    b.classList.remove('active', 'has-rows');
+    const s = b.querySelector('.node-box-stats');
+    if (s) s.textContent = '0 rows';
+  });
+  document.getElementById('stepEventCard').innerHTML = '<div class="step-placeholder">Press ▶ Next to step through</div>';
+  document.getElementById('stepCounter').textContent = `0 / ${stepLog.length}`;
+  document.getElementById('stepProgressFill').style.width = '0%';
+  updateStepButtons();
+}
+
+function stepTogglePlay() {
+  if (stepPlaying) { stopStepPlay(); } else { startStepPlay(); }
+}
+
+function startStepPlay() {
+  if (stepPos >= stepLog.length - 1) stepReset();
+  stepPlaying = true;
+  document.getElementById('stepPlayBtn').textContent = '⏸ Pause';
+  document.getElementById('stepPlayBtn').classList.add('play-active');
+  const ms = Math.max(20, speed.execStep);
+  stepPlayTimer = setInterval(() => {
+    if (stepPos >= stepLog.length - 1) { stopStepPlay(); return; }
+    stepForward();
+  }, ms);
+}
+
+function stopStepPlay() {
+  stepPlaying = false;
+  clearInterval(stepPlayTimer);
+  stepPlayTimer = null;
+  document.getElementById('stepPlayBtn').textContent = '▶ Play';
+  document.getElementById('stepPlayBtn').classList.remove('play-active');
+}
+</script>
+</body>
+</html>
