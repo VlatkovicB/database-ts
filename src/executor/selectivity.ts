@@ -28,7 +28,7 @@ export function estimateSelectivity(
   return selectivityExpr(where, tableName, ts);
 }
 
-function selectivityExpr(
+export function selectivityExpr(
   expr: Expression,
   tableName: string,
   ts: TableStats | null

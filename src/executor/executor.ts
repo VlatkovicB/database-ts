@@ -13,6 +13,20 @@ import { execSelect, planSelect, planSelectWithCTEs, ExecPlan } from './select';
 import { execExplainPlan, execExplainAnalyze } from './explain';
 import { materializeSubquery } from './subquery';
 import { CteEntry, EvalCtx } from './expr';
+import {
+  newFilterNode,
+  newLateralJoin,
+  newHashAggregate,
+  newSortNode,
+  newLimitNode,
+  newSeqScan,
+} from './volcano';
+import {
+  Qplanner,
+  buildTableRefs,
+  physRelToVolcano,
+  physRelToPlanNode,
+} from './planner';
 
 // ---------------------------------------------------------------------------
 // Result type
@@ -130,41 +144,62 @@ export class Executor {
     return planSelectWithCTEs(this, sel, ctes);
   }
 
-  // buildVolcanoRoot, newFilterNode, newLateralJoinNode, newHashAggregateNode,
-  // newSortNode, newLimitNode, newSeqScan, buildPhysRelPlanNode:
-  // These are injected by volcano.ts at startup. They are declared here so TypeScript
-  // knows about them — concrete implementations are set on the prototype or instance
-  // by the volcano layer.
-  buildVolcanoRoot!: (
+  // ---------------------------------------------------------------------------
+  // Volcano node factory methods — implemented directly using planner.ts / volcano.ts
+  // ---------------------------------------------------------------------------
+
+  buildVolcanoRoot(
     sel: import('../parser/ast').SelectStatement,
     ctes: Map<string, CteEntry> | null,
     singleWhere: import('../parser/ast').Expression | null,
     snap: Snapshot | null,
-    xid: bigint
-  ) => any;
+    xid: bigint,
+  ): any {
+    const p = new Qplanner(this, ctes);
+    const refs = buildTableRefs(sel);
+    const physRel = p.planRelations(refs, singleWhere);
+    return physRelToVolcano(physRel, this.db, snap, xid, ctes);
+  }
 
-  newFilterNode!: (root: any, where: import('../parser/ast').Expression, ctx: EvalCtx) => any;
+  newFilterNode(root: any, where: import('../parser/ast').Expression, ctx: EvalCtx): any {
+    return newFilterNode(root, where, ctx);
+  }
 
-  newLateralJoinNode!: (
+  newLateralJoinNode(
     root: any,
     j: import('../parser/ast').JoinClause,
-    ctes: Map<string, CteEntry> | null
-  ) => any;
+    ctes: Map<string, CteEntry> | null,
+  ): any {
+    return newLateralJoin(root, j.joinSubquery!, j.alias, j.type, j.condition, this, ctes);
+  }
 
-  newHashAggregateNode!: (
+  newHashAggregateNode(
     root: any,
     groupBy: string[],
     exprs: import('../parser/ast').SelectExpr[] | null,
-    having: import('../parser/ast').Expression | null
-  ) => any;
+    having: import('../parser/ast').Expression | null,
+  ): any {
+    return newHashAggregate(root, groupBy, exprs ?? [], having);
+  }
 
-  newSortNode!: (root: any, orderBy: import('../parser/ast').OrderByExpr[]) => any;
+  newSortNode(root: any, orderBy: import('../parser/ast').OrderByExpr[]): any {
+    return newSortNode(root, orderBy);
+  }
 
-  newLimitNode!: (root: any, limit: bigint | null, offset: bigint | null) => any;
+  newLimitNode(root: any, limit: bigint | null, offset: bigint | null): any {
+    return newLimitNode(root, limit, offset);
+  }
 
-  newSeqScan!: (db: Database, table: string, alias: string, snap: Snapshot | null, xid: bigint) => any;
+  newSeqScan(db: Database, table: string, alias: string, snap: Snapshot | null, xid: bigint): any {
+    return newSeqScan(db, table, alias, snap, xid);
+  }
 
-  buildPhysRelPlanNode!: (sel: import('../parser/ast').SelectStatement) => any;
+  buildPhysRelPlanNode(sel: import('../parser/ast').SelectStatement): any {
+    const p = new Qplanner(this, null);
+    const refs = buildTableRefs(sel);
+    const physRel = p.planRelations(refs, sel.where);
+    return physRelToPlanNode(physRel, this.db, null);
+  }
 
   rowCount(tableName: string): number {
     const [n] = this.db.rowCount(tableName);

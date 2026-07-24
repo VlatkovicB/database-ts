@@ -10,7 +10,7 @@ import { Database } from '../storage/storage';
 import { HistoryStore } from '../api/history';
 import { createRouter } from '../api/handler';
 
-const PORT = 8080;
+const PORT = 3000;
 
 // ---------------------------------------------------------------------------
 // Bootstrap

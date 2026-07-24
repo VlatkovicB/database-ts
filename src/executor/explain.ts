@@ -34,7 +34,7 @@ export interface PlanNode {
 const cpuTupleCost = 0.01;
 export const planWidth = 8; // default average row width in bytes
 
-function exprToSQL(expr: Expression | null): string {
+export function exprToSQL(expr: Expression | null): string {
   if (expr == null) return '';
   switch (expr.kind) {
     case 'binary': {
